@@ -316,7 +316,25 @@ function showToast(msg){
 /* ══ SS (Searchable Select) ══ */
 var SS={instances:{}};
 SS.create=function(id,opts,placeholder,onChange){SS.instances[id]={opts:Array.from(opts),val:'',placeholder:placeholder,onChange:onChange,open:false,filtered:null};SS.render(id);};
-SS.render=function(id){var inst=SS.instances[id];if(!inst)return;var el=document.getElementById(id);if(!el)return;el.className='ss';el.innerHTML='<div class="ss-trigger'+(inst.open?' open':'')+'" onclick="SS.toggle(\''+id+'\')">'+'<span class="ss-val">'+esc(inst.val||inst.placeholder)+'</span>'+'<i class="ti ti-chevron-down ss-arrow" style="transform:'+(inst.open?'rotate(180deg)':'')+';transition:transform .15s"></i>'+'</div>'+'<div class="ss-panel'+(inst.open?' open':'')+'">'+'<input class="ss-search" placeholder="Buscar..." oninput="SS.filter(\''+id+'\',this.value)" autocomplete="off">'+'<div class="ss-list" id="'+id+'-list"></div>'+'</div>';SS.renderList(id,inst.filtered||inst.opts);};
+SS.render=function(id){
+  var inst=SS.instances[id];if(!inst)return;
+  var el=document.getElementById(id);if(!el)return;
+  el.className='ss';
+  var openCls=inst.open?' open':'';
+  var rot=inst.open?'rotate(180deg)':'';
+  el.innerHTML='<div class="ss-trigger'+openCls+'">'
+    +'<span class="ss-val">'+esc(inst.val||inst.placeholder)+'</span>'
+    +'<i class="ti ti-chevron-down ss-arrow" style="transform:'+rot+';transition:transform .15s"></i>'
+    +'</div>'
+    +'<div class="ss-panel'+openCls+'">'
+    +'<input class="ss-search" placeholder="Buscar..." autocomplete="off">'
+    +'<div class="ss-list" id="'+id+'-list"></div>'
+    +'</div>';
+  /* Bind events sin inline onclick (evita escaping y stopPropagation funciona bien) */
+  el.querySelector('.ss-trigger').addEventListener('click',function(e){e.stopPropagation();SS.toggle(id);});
+  el.querySelector('.ss-search').addEventListener('input',function(){SS.filter(id,this.value);});
+  SS.renderList(id,inst.filtered||inst.opts);
+};
 SS.renderList=function(id,opts){var inst=SS.instances[id];if(!inst)return;var el=document.getElementById(id+'-list');if(!el)return;var html='<div class="ss-opt'+(inst.val===''?' sel':'')+'" onclick="SS.select(\''+id+'\',-1)">'+esc(inst.placeholder)+'</div>';opts.forEach(function(o,i){var ri=inst.opts.indexOf(o);html+='<div class="ss-opt'+(inst.val===o?' sel':'')+'" onclick="SS.select(\''+id+'\','+ri+')">'+esc(o)+'</div>';});el.innerHTML=html;};
 SS.filter=function(id,q){var inst=SS.instances[id];if(!inst)return;inst.filtered=q?inst.opts.filter(function(o){return o.toLowerCase().includes(q.toLowerCase());}):null;SS.renderList(id,inst.filtered||inst.opts);};
 SS.toggle=function(id){var inst=SS.instances[id];if(!inst)return;var wasOpen=inst.open;Object.keys(SS.instances).forEach(function(k){if(k!==id&&SS.instances[k].open){SS.instances[k].open=false;SS.render(k);}});inst.open=!wasOpen;SS.render(id);if(inst.open){setTimeout(function(){var s=document.querySelector('#'+id+' .ss-search');if(s)s.focus();},50);}};
