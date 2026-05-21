@@ -145,7 +145,9 @@ tbody td{padding:8px 14px;color:#374151;border-bottom:1px solid #F1F5F9;max-widt
 .cfg-card-del:hover{background:#FEF2F2;border-color:#FECACA;color:var(--danger)}
 /* COLUMN PILLS */
 .col-pills{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
-.cpill{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border:1.5px solid var(--border);border-radius:20px;font-size:12px;font-weight:600;color:var(--t2);background:var(--bg);cursor:pointer;transition:all .12s;font-family:inherit}
+.cpill{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border:1.5px solid var(--border);border-radius:20px;font-size:12px;font-weight:600;color:var(--t2);background:var(--bg);cursor:grab;transition:all .12s;font-family:inherit;user-select:none}
+.cpill.dragging{opacity:.35;cursor:grabbing;transform:scale(.96)}
+.cpill.drag-over{border-color:var(--accent);background:var(--al);transform:scale(1.04);box-shadow:0 0 0 3px rgba(59,130,246,.18)}
 .cpill:hover{border-color:var(--accent);color:var(--accent)}
 .cpill.on{background:var(--primary);border-color:var(--primary);color:#fff}
 /* SAVE CONFIG INLINE */
@@ -430,7 +432,8 @@ function runReport(){
 function clearFilters(){S.fs={desde:'',hasta:'',cli:'',sup:''};S.results=[];renderBody();}
 function renderResultsSection(){if(!S.activePill)return'';var n=S.results.length;var html='<div class="rcard"><div class="rhdr"><span class="rcnt"><strong>'+n.toLocaleString('es-PE')+'</strong> resultado'+(n!==1?'s':'')+'</span>'+(n?'<button class="btn-exp" onclick="doExport()"><i class="ti ti-download"></i> Exportar Excel</button>':'')+'</div><div class="twrap">';if(!n)return html+'<div class="empty"><i class="ti ti-search-off"></i><p>Sin resultados. Ajusta los filtros.</p></div></div></div>';var cols=getDispCols();html+='<table><thead><tr>'+cols.map(function(c){return'<th>'+esc(c.l)+'</th>';}).join('')+'</tr></thead><tbody>';S.results.forEach(function(res){html+='<tr>';cols.forEach(function(col){var v=res.row[col.i];if(res.mc&&res.mc.has(col.i))html+='<td><span class="cy">'+fmtD(v)+'</span></td>';else if(col.b){var lv=String(v||'').toLowerCase();html+='<td><span class="badge '+(lv==='activo'?'bact':lv==='archivado'?'barc':'both')+'">'+esc(String(v||'—'))+'</span></td>';}else html+='<td title="'+esc(String(v||''))+'">'+((v==null||v==='')?'—':(col.d?fmtD(v):esc(String(v))))+'</td>';});html+='</tr>';});return html+'</tbody></table></div></div>';}
 /* ══ HISTORIAL ══ */
-function renderHistTab(){if(!S.hist.length)return'<div class="no-rpt"><i class="ti ti-history"></i><h3>Historial vacío</h3><p>Genera reportes desde la pestaña <b>Reportes</b> y aparecerán aquí.</p></div>';var html='<div class="hist-grid">';S.hist.forEach(function(h,idx){var ico=PMETA[h.pill]?PMETA[h.pill].icon:'ti-file';html+='<div class="hcard" onclick="viewHist('+idx+')">'+'<div class="hcard-ico"><i class="ti '+ico+'"></i></div>'+'<div class="hcard-info"><div class="hcard-title">'+esc(h.pillLabel)+' — <span style="font-weight:400">'+esc(h.rptName)+'</span></div><div class="hcard-sub">'+(h.tags.length?h.tags.join(' · '):'Sin filtros')+'</div></div>'+'<div class="hcard-meta"><div class="hcard-n">'+h.n.toLocaleString('es-PE')+'</div><div class="hcard-d">'+fmtTs(h.ts)+'</div></div></div>';});return html+'</div>';}
+function renderHistTab(){if(!S.hist.length)return'<div class="no-rpt"><i class="ti ti-history"></i><h3>Historial vacío</h3><p>Genera reportes desde la pestaña <b>Reportes</b> y aparecerán aquí.</p></div>';var html='<div class="hist-grid">';S.hist.forEach(function(h,idx){var ico=PMETA[h.pill]?PMETA[h.pill].icon:'ti-file';html+='<div class="hcard" onclick="viewHist('+idx+')" style="position:relative">'+'<div class="hcard-ico"><i class="ti '+ico+'"></i></div>'+'<div class="hcard-info"><div class="hcard-title">'+esc(h.pillLabel)+' — <span style="font-weight:400">'+esc(h.rptName)+'</span></div><div class="hcard-sub">'+(h.tags.length?h.tags.join(' · '):'Sin filtros')+'</div></div>'+'<div class="hcard-meta"><div class="hcard-n">'+h.n.toLocaleString('es-PE')+'</div><div class="hcard-d">'+fmtTs(h.ts)+'</div></div>'+'<button class="ri-del" style="display:flex;position:absolute;top:10px;right:10px" onclick="event.stopPropagation();delHist('+idx+')" title="Eliminar del historial"><i class="ti ti-x"></i></button>'+'</div>';});return html+'</div>';}
+function delHist(idx){S.hist.splice(idx,1);renderBody();}
 function viewHist(idx){var h=S.hist[idx];if(!h)return;S.tab='rep';S.activeId=h.rptRef.id;S.activePill=h.pill;S.fs=h.fs||{};S.results=h.results;renderSidebar();setTab('rep');}
 /* ══ REPORTE LIBRE ══ */
 function renderLibreTab(){
@@ -479,8 +482,8 @@ function renderLibreTab(){
       });
       cfgBar+='</div></div>';
     }
-    var colPills='<div class="col-pills">';
-    fr.headers.forEach(function(h,i){if(!h)return;colPills+='<button class="cpill'+(fr.cols.indexOf(i)>=0?' on':'')+'" onclick="toggleFrCol('+i+')">'+esc(h)+'</button>';});
+    var colPills='<div class="col-pills" id="col-pills-wrap">';
+    fr.headers.forEach(function(h,i){if(!h)return;var isOn=fr.cols.indexOf(i)>=0;colPills+='<button class="cpill'+(isOn?' on':'')+'" draggable="true" data-idx="'+i+'" onclick="toggleFrCol('+i+')">'+esc(h)+'</button>';});
     colPills+='</div>';
     /* Barra de guardado */
     var savePart='';
@@ -537,9 +540,74 @@ function doExport(){if(!S.results.length)return;var rpt=getActive();if(!rpt)retu
 /* ══ EXPORT LIBRE ══ */
 function doLibreExport(){var fr=S.fr;var data=fr.results.length?fr.results:fr.rows;if(!data.length)return;loadEJS().then(function(){var wb=new ExcelJS.Workbook();var ws=wb.addWorksheet('Datos');var hRow=ws.addRow(fr.cols.map(function(i){return fr.headers[i];}));hRow.height=18;hRow.eachCell(function(cell){cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A6E'}};cell.font={bold:true,color:{argb:'FFFFFFFF'},size:10,name:'Calibri'};cell.alignment={vertical:'middle',horizontal:'center'};});fr.cols.forEach(function(ci,i){ws.getColumn(i+1).width=Math.min(Math.max(10,(fr.headers[ci]||'').length*1.1+4),36);});data.forEach(function(row){var dRow=ws.addRow(fr.cols.map(function(i){var v=row[i];return v instanceof Date?v:(v!=null?v:null);}));dRow.height=15;dRow.eachCell(function(cell){cell.font={size:10,name:'Calibri'};});});wb.xlsx.writeBuffer().then(function(buf){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));var today=new Date().toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'-');a.download='VT_Libre_'+today+'.xlsx';document.body.appendChild(a);a.click();document.body.removeChild(a);});});}
 function loadEJS(){return new Promise(function(resolve,reject){if(window.ExcelJS){resolve();return;}var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});}
-/* ══ DRAG LIBRE ══ */
+/* ══ DRAG ARCHIVO LIBRE ══ */
 document.addEventListener('dragover',function(e){if(document.getElementById('libre-dz'))e.preventDefault();});
 document.addEventListener('drop',function(e){var dz=document.getElementById('libre-dz');if(dz){e.preventDefault();var f=e.dataTransfer.files[0];if(f)loadLibre(f);}});
+
+/* ══ DRAG & DROP PILLS ══ */
+var dragSrcIdx=null;
+function initPillDrag(){
+  var wrap=document.getElementById('col-pills-wrap');
+  if(!wrap)return;
+  var pills=wrap.querySelectorAll('.cpill');
+  pills.forEach(function(pill){
+    pill.addEventListener('dragstart',function(e){
+      dragSrcIdx=parseInt(this.dataset.idx);
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',dragSrcIdx);
+    });
+    pill.addEventListener('dragend',function(){
+      this.classList.remove('dragging');
+      wrap.querySelectorAll('.cpill').forEach(function(p){p.classList.remove('drag-over');});
+    });
+    pill.addEventListener('dragover',function(e){
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      wrap.querySelectorAll('.cpill').forEach(function(p){p.classList.remove('drag-over');});
+      this.classList.add('drag-over');
+    });
+    pill.addEventListener('dragleave',function(){
+      this.classList.remove('drag-over');
+    });
+    pill.addEventListener('drop',function(e){
+      e.preventDefault();e.stopPropagation();
+      var targetIdx=parseInt(this.dataset.idx);
+      if(dragSrcIdx===null||dragSrcIdx===targetIdx)return;
+      /* Reordenar headers */
+      var fr=S.fr;
+      var hdrs=fr.headers.slice();
+      var moved=hdrs.splice(dragSrcIdx,1)[0];
+      var newTarget=targetIdx>dragSrcIdx?targetIdx-1:targetIdx;
+      hdrs.splice(newTarget,0,moved);
+      /* Remap cols seleccionadas */
+      var oldToNew={};
+      fr.headers.forEach(function(h,oldI){var newI=hdrs.indexOf(h);oldToNew[oldI]=newI;});
+      fr.cols=fr.cols.map(function(i){return oldToNew[i]!==undefined?oldToNew[i]:i;}).filter(function(i){return i>=0;});
+      /* Remap rows */
+      fr.rows=fr.rows.map(function(row){
+        var newRow=[];
+        hdrs.forEach(function(h,ni){
+          var oi=fr.headers.indexOf(h);
+          newRow[ni]=oi>=0?row[oi]:null;
+        });
+        return newRow;
+      });
+      fr.headers=hdrs;
+      fr.results=[];
+      dragSrcIdx=null;
+      renderBody();
+    });
+  });
+}
+
+/* Hook para inicializar drag tras cada render */
+var _origRenderBody=renderBody;
+renderBody=function(){
+  _origRenderBody();
+  setTimeout(initPillDrag,30);
+};
+
 renderBody();
 </script>
 </body>
